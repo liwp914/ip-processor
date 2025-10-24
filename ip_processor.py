@@ -15,43 +15,6 @@ import requests
 import json
 import logging
 
-import os
-from pathlib import Path
-
-# 确保在项目根目录运行
-def ensure_root_directory():
-    """确保脚本在项目根目录运行"""
-    current_dir = Path.cwd()
-    print(f"当前工作目录: {current_dir}")
-    
-    # 检查是否在项目根目录（有 .github 目录）
-    if not (current_dir / ".github").exists():
-        # 尝试找到项目根目录
-        script_dir = Path(__file__).parent
-        project_root = script_dir.parent
-        
-        if (project_root / ".github").exists():
-            print(f"切换到项目根目录: {project_root}")
-            os.chdir(project_root)
-        else:
-            print("警告: 无法确定项目根目录")
-    
-    print(f"最终工作目录: {Path.cwd()}")
-
-# 在 main 函数开始处调用
-if __name__ == "__main__":
-    ensure_root_directory()
-    
-    # 加载配置
-    config = load_config()
-    
-    # 打印配置摘要
-    print_config_summary(config)
-    
-    # 处理文件
-    process_files(config)
-    logger.info("处理完成！请检查output目录下的文件。")
-
 # 设置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -64,19 +27,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def load_config():
-    """加载配置文件，支持环境变量替换"""
-    config = configparser.ConfigParser(interpolation=None)
+    """加载配置文件"""
+    config = configparser.ConfigParser()
     
-    if os.path.exists('config/config.ini'):
-        config.read('config/config.ini', encoding='utf-8')
-        
-        # 环境变量替换
-        for section in config.sections():
-            for key in config[section]:
-                value = config[section][key]
-                if value.startswith('${') and value.endswith('}'):
-                    env_var = value[2:-1]
-                    config[section][key] = os.getenv(env_var, '')
+    # 设置默认配置
+    config['IP_CHECK'] = {
+        'ENABLE_IP_CHECK': 'true',
+        'CHECK_METHOD': 'ping',
+        'CHECK_PORT': '443',
+        'CHECK_TIMEOUT': '2',
+        'CHECK_THREADS': '50'
+    }
+    config['OUTPUT'] = {
+        'OUTPUT_DIR': 'output'
+    }
+    config['INPUT'] = {
+        'INPUT_DIR': 'ips'
+    }
+    config['cloudflare'] = {
+        'enable': 'false',
+        'api_token': '',
+        'zone_id': '',
+        'domain': '',
+        'record_name': 'ip',
+        'record_type': 'A',
+        'ttl': '1',
+        'proxied': 'false',
+        'max_records_per_line': '5',
+        'upload_dir': 'output',
+        'upload_files': 'all'
+    }
+    
+    # 读取配置文件
+    if os.path.exists('config.ini'):
+        config.read('config.ini', encoding='utf-8')
+        logger.info("已加载配置文件: config.ini")
+    else:
+        logger.info("未找到配置文件，使用默认配置")
+        # 创建带注释的默认配置文件
+        create_config_file_with_comments()
+        config.read('config.ini', encoding='utf-8')
+        logger.info("已创建带注释的默认配置文件: config.ini")
     
     return config
 

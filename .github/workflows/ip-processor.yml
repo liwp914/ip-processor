@@ -1,12 +1,11 @@
-name: IP Processor and Upload
+name: IP Processor Pipeline
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:  # 手动触发
+  push:
+    branches: [ main, master ]
   schedule:
     - cron: '0 0 * * *'  # 每天UTC时间0点运行
-
-env:
-  PYTHON_VERSION: '3.10'
 
 jobs:
   process-and-upload:
@@ -19,48 +18,71 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: '3.9'
         
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        cd ip_processor
+        pip install configparser==5.3.0 requests==2.31.0 tqdm==4.66.1 ipaddress==1.0.23
+        
+    - name: Make shell scripts executable
+      run: |
+        cd ip_processor
+        chmod +x cloudflare_kv_upload.sh webdav_upload.sh
         
     - name: Create necessary directories
       run: |
-        mkdir -p ips output
-        ls -la
+        mkdir -p ip_processor/ips ip_processor/output
         
-    - name: Generate config.ini from template
+    - name: Run IP Processor
       run: |
-        # 安装 envsubst 用于替换环境变量
-        sudo apt-get update && sudo apt-get install -y gettext
-        # 替换模板中的环境变量
-        envsubst < config/config.ini.template > config.ini
-        echo "生成的配置文件内容:"
-        cat config.ini
+        cd ip_processor
+        python ip_processor.py
+      env:
+        CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
         
-    - name: Run IP processor
+    - name: Run Cloudflare KV Upload
       run: |
-        python scripts/ip_processor.py
-        echo "处理完成，输出目录内容:"
-        ls -la output/
+        cd ip_processor
+        ./cloudflare_kv_upload.sh
+      env:
+        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
+        CF_TOKEN: ${{ secrets.CF_TOKEN }}
+        FOLDER_PATH: output
         
-    - name: Upload to Cloudflare KV (条件性)
-      if: success() && env.CF_DOMAIN != '' && env.CF_TOKEN != ''
+    - name: Run WebDAV Upload
       run: |
-        chmod +x scripts/cloudflare_kv_upload.sh
-        scripts/cloudflare_kv_upload.sh
+        cd ip_processor
+        ./webdav_upload.sh
+      env:
+        WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
+        WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
+        WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
         
-    - name: Upload to WebDAV (条件性)
-      if: success() && env.WEBDAV_URL != '' && env.WEBDAV_USERNAME != '' && env.WEBDAV_PASSWORD != ''
+    - name: List generated files
       run: |
-        chmod +x scripts/webdav_upload.sh
-        scripts/webdav_upload.sh
+        echo "=== 项目目录结构 ==="
+        find . -name "*.txt" -o -name "*.log" | sort
+        echo "=== ip_processor/output 目录内容 ==="
+        ls -la ip_processor/output/
+        echo "=== 处理完成 ==="
         
-    - name: Upload output files as artifact
+    - name: Upload processed files as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ip-output-files
-        path: output/
-        retention-days: 7
+        name: processed-ips-${{ github.run_id }}
+        path: |
+          ip_processor/output/
+          ip_processor/ip_processor.log
+        retention-days: 30
+        
+    - name: Commit and push generated files
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add ip_processor/output/
+        git add ip_processor/ip_processor.log
+        git diff --staged --quiet || git commit -m "Auto-generated: Update processed IP files [skip ci]"
+        git push

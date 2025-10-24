@@ -10,7 +10,7 @@ echo "=== Cloudflare KV 文件上传开始 ==="
 # 从环境变量获取配置
 CF_DOMAIN="${CF_DOMAIN}"
 CF_TOKEN="${CF_TOKEN}"
-FOLDER_PATH="${FOLDER_PATH:-output}"  # 默认路径
+FOLDER_PATH="${FOLDER_PATH:-../output}"  # 修改为相对路径，指向项目根目录的output
 
 # 检查必要的环境变量
 if [ -z "$CF_DOMAIN" ] || [ -z "$CF_TOKEN" ]; then
@@ -19,16 +19,24 @@ if [ -z "$CF_DOMAIN" ] || [ -z "$CF_TOKEN" ]; then
     exit 1
 fi
 
+# 获取脚本所在目录的绝对路径
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+FULL_FOLDER_PATH="$PROJECT_ROOT/output"
+
+echo "项目根目录: $PROJECT_ROOT"
+echo "输出目录: $FULL_FOLDER_PATH"
+
 # 检查目标文件夹是否存在
-if [ ! -d "$FOLDER_PATH" ]; then
-    echo "错误: 文件夹 $FOLDER_PATH 不存在"
+if [ ! -d "$FULL_FOLDER_PATH" ]; then
+    echo "错误: 文件夹 $FULL_FOLDER_PATH 不存在"
     echo "当前目录: $(pwd)"
-    echo "目录内容:"
-    ls -la
+    echo "项目根目录内容:"
+    ls -la "$PROJECT_ROOT"
     exit 1
 fi
 
-echo "上传目录: $FOLDER_PATH"
+echo "上传目录: $FULL_FOLDER_PATH"
 echo "目标域名: $CF_DOMAIN"
 
 # 自定义URL编码函数
@@ -60,8 +68,11 @@ fail_count=0
 
 echo "开始扫描文件..."
 
+# 进入输出目录
+cd "$FULL_FOLDER_PATH"
+
 # 遍历文件夹中所有 .txt 文件
-for FILENAME in "${FOLDER_PATH}"/*.txt; do
+for FILENAME in *.txt; do
     # 检查文件是否存在（处理无匹配的情况）
     if [ ! -f "$FILENAME" ]; then
         echo "未找到 .txt 文件，跳过"
@@ -103,6 +114,9 @@ for FILENAME in "${FOLDER_PATH}"/*.txt; do
         ((fail_count++))
     fi
 done
+
+# 返回原目录
+cd - > /dev/null
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━"

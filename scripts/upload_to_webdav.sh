@@ -19,19 +19,28 @@ if [ -z "$WEBDAV_URL" ] || [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
     exit 1
 fi
 
+# 获取脚本所在目录的绝对路径
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+OUTPUT_DIR="$PROJECT_ROOT/output"
+
+echo "项目根目录: $PROJECT_ROOT"
+echo "输出目录: $OUTPUT_DIR"
+
 # 检查output目录是否存在
-if [ ! -d "output" ]; then
+if [ ! -d "$OUTPUT_DIR" ]; then
     echo "错误：output目录不存在"
     echo "当前目录: $(pwd)"
-    ls -la
+    echo "项目根目录内容:"
+    ls -la "$PROJECT_ROOT"
     exit 1
 fi
 
 echo "WebDAV URL: $WEBDAV_URL"
-echo "上传目录: output"
+echo "上传目录: $OUTPUT_DIR"
 
 # 进入output目录
-cd output || exit 1
+cd "$OUTPUT_DIR" || exit 1
 
 # 获取所有文件列表
 shopt -s nullglob
@@ -85,7 +94,7 @@ for file in "${files[@]}"; do
 done
 
 # 返回原目录
-cd ..
+cd - > /dev/null
 
 # 输出统计结果
 echo ""

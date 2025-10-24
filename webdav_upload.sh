@@ -13,27 +13,6 @@ USERNAME="${WEBDAV_USERNAME}"
 PASSWORD="${WEBDAV_PASSWORD}"
 
 # 检查必要的环境变量
-if [ -z "$WEBDAV_URL" ] || [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
-    echo "错误: 必须设置 WEBDAV_URL, WEBDAV_USERNAME 和 WEBDAV_PASSWORD 环境变量"
-    echo "请在 GitHub Secrets 中设置这些变量"
-    exit 1
-fi
-
-# 检查output目录是否存在
-if [ ! -d "output" ]; then
-    echo "错误：output目录不存在"
-    exit 1
-fi
-
-# 进入output目录
-cd output || exit 1
-
-# 获取所有文件列表
-shopt -s nullglob
-files=( * )
-if [ ${#files[@]} -eq 0 ]; then
-    echo "错误：output目录为空"
-    exit 1
 fi
 
 # 统计变量

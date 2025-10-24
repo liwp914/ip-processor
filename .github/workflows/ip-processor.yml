@@ -4,10 +4,6 @@ on:
   workflow_dispatch:  # 允许手动触发
   schedule:
     - cron: '0 0 * * *'  # 每天UTC时间0点运行
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
 
 env:
   PYTHON_VERSION: '3.10'
@@ -28,117 +24,39 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install -r requirements.txt
         
     - name: Create necessary directories
       run: |
         mkdir -p ips output
-        echo "当前目录结构:"
         ls -la
         
     - name: Generate config.ini from template
-      env:
-        CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
-        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
       run: |
-        # 检查是否安装了envsubst
-        if ! command -v envsubst &> /dev/null; then
-          sudo apt-get update && sudo apt-get install -y gettext-base
-        fi
-        
-        # 如果配置文件模板存在，则使用它
-        if [ -f config/config.ini.template ]; then
-          echo "使用模板生成配置文件..."
-          envsubst < config/config.ini.template > config.ini
-        else
-          echo "配置文件模板不存在，创建默认配置..."
-          cat > config.ini << 'EOF'
-[IP_CHECK]
-ENABLE_IP_CHECK = true
-CHECK_METHOD = port
-CHECK_PORT = 443
-CHECK_TIMEOUT = 2
-CHECK_THREADS = 50
-
-[INPUT]
-INPUT_DIR = ips
-
-[OUTPUT]
-OUTPUT_DIR = output
-
-[cloudflare]
-enable = false
-api_token = ${{ secrets.CF_API_TOKEN }}
-zone_id = ${{ secrets.CF_ZONE_ID }}
-domain = ${{ secrets.CF_DOMAIN }}
-record_name = ip
-record_type = A
-ttl = 1
-proxied = false
-max_records_per_line = 5
-upload_dir = output
-upload_files = all
-EOF
-        fi
-        
+        # 安装 envsubst 用于替换环境变量
+        sudo apt-get update && sudo apt-get install -y gettext
+        # 替换模板中的环境变量
+        envsubst < config/config.ini.template > config.ini
         echo "生成的配置文件内容:"
         cat config.ini
         
     - name: Run IP processor
       run: |
-        # 检查Python脚本是否存在
-        if [ -f scripts/ip_processor.py ]; then
-          python scripts/ip_processor.py
-        elif [ -f ip_processor.py ]; then
-          python ip_processor.py
-        else
-          echo "错误: 未找到IP处理脚本"
-          exit 1
-        fi
-        
+        python scripts/ip_processor.py
         echo "处理完成，输出目录内容:"
         ls -la output/
-        echo "文件内容预览:"
-        for file in output/*.txt; do
-          if [ -f "$file" ]; then
-            echo "=== $file ==="
-            head -5 "$file"
-          fi
-        done
         
     - name: Upload to Cloudflare KV (条件性)
       if: success() && env.CF_DOMAIN != '' && env.CF_TOKEN != ''
-      env:
-        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
-        CF_TOKEN: ${{ secrets.CF_TOKEN }}
       run: |
-        if [ -f scripts/cloudflare_kv_upload.sh ]; then
-          chmod +x scripts/cloudflare_kv_upload.sh
-          scripts/cloudflare_kv_upload.sh
-        elif [ -f cloudflare_kv_upload.sh ]; then
-          chmod +x cloudflare_kv_upload.sh
-          ./cloudflare_kv_upload.sh
-        else
-          echo "警告: 未找到Cloudflare KV上传脚本"
-        fi
+        chmod +x scripts/cloudflare_kv_upload.sh
+        scripts/cloudflare_kv_upload.sh
         
     - name: Upload to WebDAV (条件性)
       if: success() && env.WEBDAV_URL != '' && env.WEBDAV_USERNAME != '' && env.WEBDAV_PASSWORD != ''
-      env:
-        WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
-        WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
-        WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
       run: |
-        if [ -f scripts/webdav_upload.sh ]; then
-          chmod +x scripts/webdav_upload.sh
-          scripts/webdav_upload.sh
-        elif [ -f webdav_upload.sh ]; then
-          chmod +x webdav_upload.sh
-          ./webdav_upload.sh
-        else
-          echo "警告: 未找到WebDAV上传脚本"
-        fi
+        chmod +x scripts/webdav_upload.sh
+        scripts/webdav_upload.sh
         
     - name: Upload output files as artifact
       uses: actions/upload-artifact@v4
@@ -146,4 +64,3 @@ EOF
         name: ip-output-files
         path: output/
         retention-days: 7
-        if-no-files-found: warn

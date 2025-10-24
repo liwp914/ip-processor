@@ -15,6 +15,43 @@ import requests
 import json
 import logging
 
+import os
+from pathlib import Path
+
+# 确保在项目根目录运行
+def ensure_root_directory():
+    """确保脚本在项目根目录运行"""
+    current_dir = Path.cwd()
+    print(f"当前工作目录: {current_dir}")
+    
+    # 检查是否在项目根目录（有 .github 目录）
+    if not (current_dir / ".github").exists():
+        # 尝试找到项目根目录
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent
+        
+        if (project_root / ".github").exists():
+            print(f"切换到项目根目录: {project_root}")
+            os.chdir(project_root)
+        else:
+            print("警告: 无法确定项目根目录")
+    
+    print(f"最终工作目录: {Path.cwd()}")
+
+# 在 main 函数开始处调用
+if __name__ == "__main__":
+    ensure_root_directory()
+    
+    # 加载配置
+    config = load_config()
+    
+    # 打印配置摘要
+    print_config_summary(config)
+    
+    # 处理文件
+    process_files(config)
+    logger.info("处理完成！请检查output目录下的文件。")
+
 # 设置日志
 logging.basicConfig(
     level=logging.INFO,

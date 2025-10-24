@@ -10,7 +10,7 @@ echo "=== Cloudflare KV 文件上传开始 ==="
 # 从环境变量获取配置
 CF_DOMAIN="${CF_DOMAIN}"
 CF_TOKEN="${CF_TOKEN}"
-FOLDER_PATH="${FOLDER_PATH:-output}"  # 修改为相对路径，指向项目根目录的output
+FOLDER_PATH="${FOLDER_PATH:-output}"  # 默认为项目根目录的output
 
 # 检查必要的环境变量
 if [ -z "$CF_DOMAIN" ] || [ -z "$CF_TOKEN" ]; then
@@ -22,7 +22,7 @@ fi
 # 获取脚本所在目录的绝对路径
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FULL_FOLDER_PATH="$PROJECT_ROOT/output"
+FULL_FOLDER_PATH="$PROJECT_ROOT/$FOLDER_PATH"
 
 echo "项目根目录: $PROJECT_ROOT"
 echo "输出目录: $FULL_FOLDER_PATH"

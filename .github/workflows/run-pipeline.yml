@@ -2,9 +2,8 @@ name: IP Processor Pipeline
 
 on:
   schedule:
-    # 每12小时运行一次 (UTC时间)
     - cron: '0 */12 * * *'
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   process-and-upload:
@@ -24,9 +23,26 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
-    - name: Create necessary directories
+    - name: Create directories and test
       run: |
+        # 创建必要的目录
         mkdir -p ips output
+        
+        # 测试目录结构
+        echo "=== 目录结构测试 ==="
+        pwd
+        ls -la
+        echo "ips目录:"
+        ls -la ips/
+        echo "output目录:"
+        ls -la output/
+        
+        # 创建一个测试文件到ips目录（如果目录为空）
+        if [ ! "$(ls -A ips/)" ]; then
+          echo "创建测试文件..."
+          echo "8.8.8.8" > ips/test.txt
+          echo "创建了测试文件"
+        fi
         
     - name: Run IP Processor
       env:
@@ -34,31 +50,54 @@ jobs:
         CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
       run: |
+        echo "=== 运行Python脚本 ==="
+        pwd
+        ls -la
         python scripts/ip_processor.py
         
-    - name: Make shell scripts executable
+    - name: Verify output directory
+      run: |
+        echo "=== 验证输出目录 ==="
+        pwd
+        ls -la
+        if [ -d "output" ]; then
+          echo "output目录存在，内容:"
+          ls -la output/
+          echo "文件数量: $(ls output/ | wc -l)"
+        else
+          echo "ERROR: output目录不存在!"
+          # 尝试手动创建并查看权限
+          mkdir -p output
+          ls -la
+        fi
+        
+    - name: Make scripts executable
       run: |
         chmod +x scripts/upload_to_cfkv.sh
         chmod +x scripts/upload_to_webdav.sh
         
     - name: Upload to Cloudflare KV
+      if: success() && hash('output') && env.CF_DOMAIN != ''
       env:
         CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
         CF_TOKEN: ${{ secrets.CF_TOKEN }}
       run: |
-        ./scripts/upload_to_cfkv.sh  # 在项目根目录运行
+        ./scripts/upload_to_cfkv.sh
         
     - name: Upload to WebDAV
+      if: success() && hash('output') && env.WEBDAV_URL != ''
       env:
         WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
         WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
         WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
       run: |
-        ./scripts/upload_to_webdav.sh  # 在项目根目录运行
+        ./scripts/upload_to_webdav.sh
         
-    - name: Upload output files as artifact
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: output-files
-        path: output/
+        path: |
+          output/
+          ip_processor.log
         retention-days: 7

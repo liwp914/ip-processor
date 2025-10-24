@@ -12,6 +12,11 @@ CF_DOMAIN="${CF_DOMAIN}"
 CF_TOKEN="${CF_TOKEN}"
 FOLDER_PATH="${FOLDER_PATH:-output}"  # 默认为项目根目录的output
 
+# 打印环境变量（调试用）
+echo "CF_DOMAIN: $CF_DOMAIN"
+echo "CF_TOKEN: $CF_TOKEN"
+echo "FOLDER_PATH: $FOLDER_PATH"
+
 # 检查必要的环境变量
 if [ -z "$CF_DOMAIN" ] || [ -z "$CF_TOKEN" ]; then
     echo "错误: 必须设置 CF_DOMAIN 和 CF_TOKEN 环境变量"

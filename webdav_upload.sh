@@ -19,26 +19,14 @@ if [ -z "$WEBDAV_URL" ] || [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
     exit 1
 fi
 
-# 获取脚本所在目录的绝对路径
-OUTPUT_DIR="output"
-
-echo "项目根目录: $PROJECT_ROOT"
-echo "输出目录: $OUTPUT_DIR"
-
 # 检查output目录是否存在
-if [ ! -d "$OUTPUT_DIR" ]; then
+if [ ! -d "output" ]; then
     echo "错误：output目录不存在"
-    echo "当前目录: $(pwd)"
-    echo "项目根目录内容:"
-    ls -la "$PROJECT_ROOT"
     exit 1
 fi
 
-echo "WebDAV URL: $WEBDAV_URL"
-echo "上传目录: $OUTPUT_DIR"
-
 # 进入output目录
-cd "$OUTPUT_DIR" || exit 1
+cd output || exit 1
 
 # 获取所有文件列表
 shopt -s nullglob
@@ -52,8 +40,6 @@ fi
 total_files=${#files[@]}
 success_count=0
 fail_count=0
-
-echo "找到 $total_files 个文件"
 
 # 遍历上传文件
 for file in "${files[@]}"; do
@@ -73,7 +59,7 @@ for file in "${files[@]}"; do
     # 结果判断
     case $http_code in
         201|204)
-            echo "✓ 上传成功"
+            echo "√ 上传成功"
             ((success_count++))
             ;;
         409)
@@ -92,7 +78,7 @@ for file in "${files[@]}"; do
 done
 
 # 返回原目录
-cd - > /dev/null
+cd ..
 
 # 输出统计结果
 echo ""
@@ -101,7 +87,3 @@ echo "文件总数 : $total_files"
 echo "成功上传 : $success_count"
 echo "失败数量 : $fail_count"
 echo "━━━━━━━━━━━━━━━━━━━━━"
-
-if [ $fail_count -gt 0 ]; then
-    exit 1
-fi

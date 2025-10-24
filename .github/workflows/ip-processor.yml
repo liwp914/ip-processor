@@ -7,15 +7,6 @@ on:
   schedule:
     - cron: '0 12 * * *'  # 每天UTC时间12点运行
 
-env:
-  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-  CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
-  CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
-  CF_TOKEN: ${{ secrets.CF_TOKEN }}
-  WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
-  WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
-  WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
-
 jobs:
   process:
     runs-on: ubuntu-latest
@@ -24,12 +15,47 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
     - name: Setup environment
       run: |
+        echo "=== 检查目录结构 ==="
+        pwd
+        ls -la
+        
+        echo "=== 检查ip_processor目录 ==="
+        if [ -d "ip_processor" ]; then
+          echo "ip_processor目录存在"
+          ls -la ip_processor/
+        else
+          echo "错误: ip_processor目录不存在"
+          exit 1
+        fi
+        
+        echo "=== 安装依赖 ==="
         cd ip_processor
-        pip install -r requirements.txt
-        chmod +x *.sh
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+        else
+          echo "未找到requirements.txt，安装默认依赖"
+          pip install configparser requests tqdm ipaddress
+        fi
+        
+        echo "=== 设置脚本权限 ==="
+        if [ -f "cloudflare_kv_upload.sh" ]; then
+          chmod +x cloudflare_kv_upload.sh
+        fi
+        if [ -f "webdav_upload.sh" ]; then
+          chmod +x webdav_upload.sh
+        fi
+        
+        echo "=== 创建必要目录 ==="
         mkdir -p ips output
+        echo "目录创建完成"
+        ls -la
         
     - name: Execute processing pipeline
       run: |
@@ -38,10 +64,18 @@ jobs:
         python ip_processor.py
         
         echo "=== 步骤2: 上传到Cloudflare KV ==="
-        ./cloudflare_kv_upload.sh || echo "Cloudflare KV上传失败或跳过"
+        if [ -f "cloudflare_kv_upload.sh" ] && [ -n "${{ secrets.CF_DOMAIN }}" ] && [ -n "${{ secrets.CF_TOKEN }}" ]; then
+          ./cloudflare_kv_upload.sh
+        else
+          echo "跳过Cloudflare KV上传"
+        fi
         
         echo "=== 步骤3: 上传到WebDAV ==="
-        ./webdav_upload.sh || echo "WebDAV上传失败或跳过"
+        if [ -f "webdav_upload.sh" ] && [ -n "${{ secrets.WEBDAV_URL }}" ] && [ -n "${{ secrets.WEBDAV_USERNAME }}" ]; then
+          ./webdav_upload.sh
+        else
+          echo "跳过WebDAV上传"
+        fi
         
     - name: Save workflow results
       uses: actions/upload-artifact@v4
@@ -49,3 +83,4 @@ jobs:
         name: ip-processing-results
         path: ip_processor/output/
         retention-days: 7
+      if: always()  # 即使前面的步骤失败也上传结果用于调试

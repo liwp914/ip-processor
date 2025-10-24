@@ -2,8 +2,8 @@ name: IP Processor and Upload Workflow
 
 on:
   schedule:
-    - cron: "0 */12 * * *"
-  workflow_dispatch:
+    - cron: "0 */12 * * *"  # 每12小时运行一次
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   process:
@@ -20,7 +20,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # 更新到 v4
+      uses: actions/checkout@v4  # 更新到v4版本
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -47,12 +47,18 @@ jobs:
     - name: Check output files
       run: |
         echo "=== 输出文件检查 ==="
-        ls -la output/
-        if [ -z "$(ls -A output/)" ]; then
-          echo "警告: output 目录为空"
+        if [ -d "output" ]; then
+          echo "output目录存在，内容如下："
+          ls -la output/
+          if [ -n "$(ls -A output/)" ]; then
+            echo "文件数量: $(ls output/ | wc -l)"
+            echo "文件示例："
+            head -n 3 output/*.txt 2>/dev/null || echo "无法读取文件内容"
+          else
+            echo "output目录为空"
+          fi
         else
-          echo "找到的文件:"
-          ls output/
+          echo "错误: output目录不存在"
         fi
 
     - name: Run Cloudflare KV Upload Script
@@ -67,6 +73,7 @@ jobs:
         chmod +x webdav_upload.sh
         ./webdav_upload.sh
 
+    # ===== 方法3：上传Artifact（替换原来的提交步骤） =====
     - name: Upload output as artifact
       uses: actions/upload-artifact@v4
       with:

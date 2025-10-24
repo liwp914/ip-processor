@@ -1,18 +1,25 @@
 #!/bin/bash
 
-# WebDAV 上传脚本
-# 适用于 GitHub Actions 环境
-
-set -e  # 遇到错误立即退出
-
-echo "=== WebDAV 文件上传开始 ==="
-
-# WebDAV配置（从环境变量获取）
+# WebDAV配置
 WEBDAV_URL="${WEBDAV_URL}"
 USERNAME="${WEBDAV_USERNAME}"
 PASSWORD="${WEBDAV_PASSWORD}"
 
-# 检查必要的环境变量
+# 检查output目录是否存在
+if [ ! -d "output" ]; then
+    echo "错误：output目录不存在"
+    exit 1
+fi
+
+# 进入output目录
+cd output || exit 1
+
+# 获取所有文件列表
+shopt -s nullglob
+files=( * )
+if [ ${#files[@]} -eq 0 ]; then
+    echo "错误：output目录为空"
+    exit 1
 fi
 
 # 统计变量

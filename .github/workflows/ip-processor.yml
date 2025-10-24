@@ -7,15 +7,6 @@ on:
   schedule:
     - cron: '0 12 * * *'  # 每天UTC时间12点运行
 
-env:
-  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-  CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
-  CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
-  CF_TOKEN: ${{ secrets.CF_TOKEN }}
-  WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
-  WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
-  WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
-
 jobs:
   process:
     runs-on: ubuntu-latest
@@ -29,39 +20,80 @@ jobs:
       with:
         python-version: '3.9'
         
+    - name: Show directory structure
+      run: |
+        echo "=== 初始目录结构 ==="
+        pwd
+        ls -la
+        
     - name: Install dependencies
       run: |
+        echo "=== 安装依赖 ==="
         pip install configparser requests tqdm ipaddress
         
     - name: Make scripts executable
       run: |
+        echo "=== 设置脚本权限 ==="
         chmod +x cloudflare_kv_upload.sh webdav_upload.sh
+        ls -la *.sh
         
     - name: Create necessary directories
       run: |
+        echo "=== 创建目录 ==="
         mkdir -p ips output
         echo "目录结构:"
         ls -la
+        echo "ips目录:"
+        ls -la ips/
+        echo "output目录:"
+        ls -la output/
         
     - name: Run IP processor
+      env:
+        CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
       run: |
+        echo "=== 运行IP处理器 ==="
         python ip_processor.py
         
-    - name: Upload to Cloudflare KV
-      if: env.CF_DOMAIN != '' && env.CF_TOKEN != ''
+    - name: Check results
       run: |
+        echo "=== 检查处理结果 ==="
+        echo "output目录内容:"
+        ls -la output/
+        echo "日志文件:"
+        if [ -f "ip_processor.log" ]; then
+          tail -20 ip_processor.log
+        else
+          echo "未找到日志文件"
+        fi
+        
+    - name: Upload to Cloudflare KV
+      if: secrets.CF_DOMAIN != '' && secrets.CF_TOKEN != ''
+      env:
+        CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
+        CF_TOKEN: ${{ secrets.CF_TOKEN }}
+      run: |
+        echo "=== 上传到Cloudflare KV ==="
         ./cloudflare_kv_upload.sh
         
     - name: Upload to WebDAV
-      if: env.WEBDAV_URL != '' && env.WEBDAV_USERNAME != '' && env.WEBDAV_PASSWORD != ''
+      if: secrets.WEBDAV_URL != '' && secrets.WEBDAV_USERNAME != '' && secrets.WEBDAV_PASSWORD != ''
+      env:
+        WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
+        WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
+        WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
       run: |
+        echo "=== 上传到WebDAV ==="
         ./webdav_upload.sh
         
     - name: Upload results as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ip-processor-results
+        name: ip-processor-results-${{ github.run_number }}
         path: |
           output/
           ip_processor.log
         retention-days: 7
+      if: always()  # 即使前面的步骤失败也上传结果

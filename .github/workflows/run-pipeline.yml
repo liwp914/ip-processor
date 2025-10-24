@@ -45,9 +45,8 @@ jobs:
       env:
         CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
         CF_TOKEN: ${{ secrets.CF_TOKEN }}
-        FOLDER_PATH: "output"
       run: |
-        cd scripts && ./upload_to_cfkv.sh
+        ./scripts/upload_to_cfkv.sh  # 在项目根目录运行
         
     - name: Upload to WebDAV
       env:
@@ -55,7 +54,7 @@ jobs:
         WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
         WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
       run: |
-        cd scripts && ./upload_to_webdav.sh
+        ./scripts/upload_to_webdav.sh  # 在项目根目录运行
         
     - name: Upload output files as artifact
       uses: actions/upload-artifact@v4

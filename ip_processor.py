@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def load_config():
-    """加载配置文件"""
+    """加载配置文件，支持环境变量替换"""
     config = configparser.ConfigParser()
     
     # 设置默认配置
@@ -62,6 +62,20 @@ def load_config():
     if os.path.exists('config.ini'):
         config.read('config.ini', encoding='utf-8')
         logger.info("已加载配置文件: config.ini")
+        
+        # 环境变量替换
+        for section in config.sections():
+            for key in config[section]:
+                value = config[section][key]
+                # 检查是否是环境变量格式 ${VAR_NAME}
+                if value.startswith('${') and value.endswith('}'):
+                    env_var_name = value[2:-1]  # 提取变量名
+                    env_value = os.getenv(env_var_name, '')  # 从环境变量获取值
+                    if env_value:
+                        config[section][key] = env_value
+                        logger.debug(f"替换环境变量: {env_var_name} -> {env_value[:10]}...")
+                    else:
+                        logger.warning(f"环境变量未设置: {env_var_name}")
     else:
         logger.info("未找到配置文件，使用默认配置")
         # 创建带注释的默认配置文件
@@ -108,15 +122,15 @@ enable = false
 
 # Cloudflare API Token
 # 需要在Cloudflare控制台生成具有DNS编辑权限的Token
-api_token = 
+api_token = ${CF_API_TOKEN}
 
 # Cloudflare区域ID (Zone ID)
 # 在Cloudflare域名概述页面可以找到
-zone_id = 
+zone_id = ${CF_ZONE_ID}
 
 # 主域名，用于创建DNS记录
 # 例如: example.com
-domain = 
+domain = ${CF_DOMAIN}
 
 # DNS记录名称前缀
 # 如果设置为"ip"，则记录名为 ip-标签.域名
@@ -318,6 +332,23 @@ class CloudflareManager:
         self.api_token = config.get('cloudflare', 'api_token')
         self.zone_id = config.get('cloudflare', 'zone_id')
         self.domain = config.get('cloudflare', 'domain')
+        
+        # 检查必要的配置是否设置
+        if not self.api_token:
+            logger.error("Cloudflare API Token未设置，请检查config.ini或环境变量")
+            self.enable = False
+            return
+            
+        if not self.zone_id:
+            logger.error("Cloudflare Zone ID未设置，请检查config.ini或环境变量")
+            self.enable = False
+            return
+            
+        if not self.domain:
+            logger.error("Cloudflare域名未设置，请检查config.ini或环境变量")
+            self.enable = False
+            return
+        
         self.record_name = config.get('cloudflare', 'record_name')
         self.record_type = config.get('cloudflare', 'record_type')
         self.ttl = config.getint('cloudflare', 'ttl')
@@ -332,6 +363,8 @@ class CloudflareManager:
         }
         
         logger.info("Cloudflare管理器初始化完成")
+        logger.info(f"域名: {self.domain}")
+        logger.info(f"Zone ID: {self.zone_id[:10]}...")
     
     def get_existing_records(self, subdomain):
         """获取现有的DNS记录"""
@@ -651,18 +684,41 @@ def process_files(config):
     output_dir = Path(config.get('OUTPUT', 'OUTPUT_DIR'))
     output_dir.mkdir(exist_ok=True)
     
+    logger.info(f"输入目录: {input_dir.absolute()}")
+    logger.info(f"输出目录: {output_dir.absolute()}")
+    
     if not input_dir.exists():
         logger.error(f"{input_dir} 目录不存在，请创建目录并放入文件")
+        # 列出当前目录内容用于调试
+        logger.info("当前目录内容:")
+        for item in Path('.').iterdir():
+            logger.info(f"  {item.name}")
         return
     
     # 初始化Cloudflare管理器
     cf_manager = CloudflareManager(config)
+    
+    # 检查输入目录中的文件
+    file_count = 0
+    for file_path in input_dir.iterdir():
+        if file_path.is_file():
+            file_count += 1
+            logger.info(f"找到文件: {file_path.name}")
+    
+    if file_count == 0:
+        logger.warning(f"输入目录 {input_dir} 中没有找到任何文件")
+        # 创建示例文件
+        example_file = input_dir / "example.txt"
+        example_file.write_text("8.8.8.8\n1.1.1.1\n", encoding='utf-8')
+        logger.info(f"已创建示例文件: {example_file}")
     
     # 遍历输入目录下的所有文件
     for file_path in input_dir.iterdir():
         if file_path.is_file():
             filename_without_ext = file_path.stem  # 获取不带扩展名的文件名
             results = []
+            
+            logger.info(f"处理文件: {file_path.name}")
             
             if file_path.suffix.lower() == '.txt':
                 results = extract_ips_from_txt(file_path, filename_without_ext)
@@ -671,6 +727,8 @@ def process_files(config):
             else:
                 logger.info(f"跳过不支持的文件类型: {file_path}")
                 continue
+            
+            logger.info(f"从文件中提取到 {len(results)} 个IP")
             
             # 检测IP可用性
             if results and config.getboolean('IP_CHECK', 'ENABLE_IP_CHECK'):
@@ -715,6 +773,11 @@ def print_config_summary(config):
     if config.getboolean('cloudflare', 'enable'):
         logger.info("  Cloudflare配置:")
         logger.info(f"    域名: {config.get('cloudflare', 'domain')}")
+        # 隐藏敏感信息的部分显示
+        api_token = config.get('cloudflare', 'api_token')
+        zone_id = config.get('cloudflare', 'zone_id')
+        logger.info(f"    API Token: {'已设置' if api_token else '未设置'}")
+        logger.info(f"    Zone ID: {'已设置' if zone_id else '未设置'}")
         logger.info(f"    记录名称前缀: '{config.get('cloudflare', 'record_name')}'")
         logger.info(f"    记录类型: {config.get('cloudflare', 'record_type')}")
         logger.info(f"    每行最大记录数: {config.getint('cloudflare', 'max_records_per_line')}")

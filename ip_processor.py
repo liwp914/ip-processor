@@ -280,8 +280,36 @@ def extract_ips_from_txt(file_path, filename_without_ext):
         logger.error(f"读取txt文件 {file_path} 时出错: {e}")
     return results
 
+def find_region_column_index(headers):
+    """动态查找国家地区代码列的索引"""
+    # 可能的列名列表（按优先级排序）
+    possible_names = [
+        "源IP位置", "国家", "地区", "Country", "Region", 
+        "国家代码", "地区代码", "Country Code", "Region Code"
+    ]
+    
+    # 查找匹配的列名
+    for i, header in enumerate(headers):
+        header_clean = header.strip().lower()
+        for name in possible_names:
+            if name.lower() in header_clean:
+                logger.info(f"找到地区代码列: '{header}' (索引: {i})")
+                return i
+    
+    # 如果没有找到匹配的列，尝试基于常见模式猜测
+    for i, header in enumerate(headers):
+        header_clean = header.strip().lower()
+        # 检查是否包含地区相关的关键词
+        if any(keyword in header_clean for keyword in ['地区', '国家', 'country', 'region', '位置', 'location']):
+            logger.info(f"猜测地区代码列: '{header}' (索引: {i})")
+            return i
+    
+    # 如果还是没找到，使用默认的第5列（索引4）
+    logger.warning(f"未找到地区代码列，使用默认索引4。表头: {headers}")
+    return 4 if len(headers) > 4 else None
+
 def extract_ips_from_csv(file_path, filename_without_ext):
-    """从csv文件中提取IP地址和端口"""
+    """从csv文件中提取IP地址、端口和国家地区代码"""
     results = []
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -302,20 +330,38 @@ def extract_ips_from_csv(file_path, filename_without_ext):
             
             # 如果有表头，跳过第一行
             if has_header:
-                next(reader, None)
+                headers = next(reader)
+                # 动态查找国家地区代码列的索引
+                region_index = find_region_column_index(headers)
+                logger.info(f"检测到表头: {headers}, 地区代码列索引: {region_index}")
+            else:
+                headers = []
+                region_index = 4  # 默认使用第5列作为地区代码
             
-            for row in reader:
-                if len(row) >= 2:  # 确保有IP和端口列
-                    ip_str = str(row[0]).strip()
-                    port_str = str(row[1]).strip()
+            for row_num, row in enumerate(reader, 1 if has_header else 0):
+                if len(row) < 2:  # 确保有IP和端口列
+                    continue
+                
+                ip_str = str(row[0]).strip()
+                port_str = str(row[1]).strip()
+                
+                # 获取国家地区代码
+                region_code = filename_without_ext  # 默认使用文件名
+                if region_index is not None and len(row) > region_index:
+                    region_code = str(row[region_index]).strip()
+                    # 如果地区代码为空，使用文件名
+                    if not region_code:
+                        region_code = filename_without_ext
+                
+                if ip_str and validate_ip(ip_str):
+                    if port_str and port_str.split()[0].isdigit():  # 只取端口数字部分
+                        port = port_str.split()[0]
+                        results.append(f"{ip_str}:{port}#{region_code}")
+                    else:
+                        results.append(f"{ip_str}#{region_code}")
+                else:
+                    logger.warning(f"第{row_num}行IP地址无效: {ip_str}")
                     
-                    # 使用文件名作为标签，而不是城市名称
-                    if ip_str and validate_ip(ip_str):
-                        if port_str and port_str.isdigit():
-                            # 使用原文件名作为标签，如HK
-                            results.append(f"{ip_str}:{port_str}#{filename_without_ext}")
-                        else:
-                            results.append(f"{ip_str}#{filename_without_ext}")
     except Exception as e:
         logger.error(f"读取csv文件 {file_path} 时出错: {e}")
     return results

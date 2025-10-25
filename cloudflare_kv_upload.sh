@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # 从环境变量获取配置
-CF_DOMAIN="${CF_DOMAIN}"
-CF_TOKEN="${CF_TOKEN}"
+CF_DOMAIN="${CFKV_DOMAIN}"
+CF_TOKEN="${CFKV_TOKEN}"
 FOLDER_PATH="${FOLDER_PATH:-output}"  # 默认路径
 
 # 检查必要的环境变量
-if [ -z "$CF_DOMAIN" ] || [ -z "$CF_TOKEN" ]; then
-    echo "错误: 必须设置 CF_DOMAIN 和 CF_TOKEN 环境变量"
+if [ -z "$CFKV_DOMAIN" ] || [ -z "$CFKV_TOKEN" ]; then
+    echo "错误: 必须设置 CFKV_DOMAIN 和 CFKV_TOKEN 环境变量"
     exit 1
 fi
 
@@ -59,7 +59,7 @@ for FILENAME in "${FOLDER_PATH}"/*.txt; do
     FILENAME_URL=$(urlencode "$FILENAME_ONLY")
 
     # 构建URL
-    URL="https://${CF_DOMAIN}/${FILENAME_URL}?token=${CF_TOKEN}&b64=${BASE64_TEXT}"
+    URL="https://${CFKV_DOMAIN}/${FILENAME_URL}?token=${CFKV_TOKEN}&b64=${BASE64_TEXT}"
 
     echo "上传文件: $FILENAME"
 

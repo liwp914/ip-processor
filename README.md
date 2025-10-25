@@ -29,7 +29,7 @@ enable = true
 api_token = ${CF_API_TOKEN}  # 使用环境变量更安全
 zone_id = ${CF_ZONE_ID}
 domain = pages.dev  # 您的域名
-record_name = ip
+record_name = aa
 5. 设置环境变量
 在系统或GitHub Secrets中设置：
 

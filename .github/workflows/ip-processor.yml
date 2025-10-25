@@ -11,9 +11,10 @@ jobs:
 
     env:
       CFKV_DOMAIN: ${{ secrets.CFKV_DOMAIN }}
-      CFKV_TOKEN: ${{ secrets.CKVF_TOKEN }}
+      CFKV_TOKEN: ${{ secrets.CFKV_TOKEN }}
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+      CF_DOMAIN: ${{ secrets.CF_DOMAIN }}
       WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
       WEBDAV_USERNAME: ${{ secrets.WEBDAV_USERNAME }}
       WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
